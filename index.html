@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chronos Drift | Stylish Time</title>
+    <title>Chronos Singularity</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Syncopate:wght@400;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -17,15 +17,13 @@
             padding: 0;
             width: 100%;
             height: 100%;
-            background: radial-gradient(circle at center, #1a1a2e 0%, var(--bg-dark) 100%);
+            background: radial-gradient(circle at center, #1b1b3a 0%, var(--bg-dark) 100%);
             color: #fff;
             font-family: 'Orbitron', sans-serif;
             overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
         }
 
+        /* 背景の浮遊文字コンテナ */
         #canvas-container {
             position: absolute;
             top: 0;
@@ -33,6 +31,7 @@
             width: 100%;
             height: 100%;
             pointer-events: none;
+            z-index: 1;
         }
 
         .floating-letter {
@@ -43,56 +42,72 @@
             text-shadow: 0 0 8px var(--accent);
             opacity: 0;
             user-select: none;
+            will-change: transform, opacity;
         }
 
-        /* Time Display Styling */
-        #timeDisplay {
-            font-size: 3rem;
-            font-weight: 700;
-            letter-spacing: 4px;
-            color: white;
-            text-shadow: 0 0 20px var(--accent);
-            opacity: 0;
-            z-index: 10;
+        /* 【重要】位置ズレを防ぐための絶対配置コンテナ 
+           ボタンと時計は常にこの中心点に重なって表示されます
+        */
+        .center-stage {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 100;
             display: flex;
-            flex-wrap: wrap;
             justify-content: center;
-            pointer-events: none;
+            align-items: center;
+            width: 0;     /* 幅を持たせないことでフローの影響を受けない */
+            height: 0;
+            overflow: visible; /* 中身がはみ出しても見えるように */
         }
 
-        .time-char {
-            display: inline-block;
-            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-
-        /* Button Styling */
-        .btn-container {
-            position: relative;
-            z-index: 20;
-        }
-
+        /* ボタンのデザイン */
         .button {
+            position: absolute; /* 親の中心に固定 */
             padding: 15px 40px;
             font-family: 'Syncopate', sans-serif;
-            font-size: 0.9rem;
+            font-size: 1.2rem;
             letter-spacing: 5px;
-            background: var(--glass);
+            background: rgba(0, 242, 255, 0.1);
             border: 1px solid var(--accent);
             color: var(--accent);
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(5px);
             cursor: pointer;
-            border-radius: 0px;
-            transition: all 0.4s;
+            transition: all 0.3s ease;
             box-shadow: 0 0 15px rgba(0, 242, 255, 0.2);
+            white-space: nowrap; /* 文字折り返し防止 */
         }
 
         .button:hover {
             background: var(--accent);
             color: var(--bg-dark);
-            box-shadow: 0 0 30px var(--accent);
+            box-shadow: 0 0 40px var(--accent);
+            transform: scale(1.05);
         }
 
-        /* Animations */
+        /* 時刻表示のデザイン */
+        #timeDisplay {
+            position: absolute; /* 親の中心に固定 */
+            font-size: 4rem;
+            font-weight: 700;
+            letter-spacing: 4px;
+            color: white;
+            text-shadow: 0 0 20px var(--accent);
+            opacity: 0;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+
+        .time-char {
+            display: inline-block;
+        }
+
+        /* ====================
+           アニメーション定義
+           ==================== */
+
+        /* 通常時の浮遊 */
         @keyframes drift {
             0% { transform: translate(0, 0) rotate(0deg); opacity: 0; }
             20% { opacity: 0.6; }
@@ -100,12 +115,40 @@
             100% { transform: translate(var(--dx), var(--dy)) rotate(360deg); opacity: 0; }
         }
 
-        @keyframes gather {
-            to { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; }
+        /* ビッグバン：収束 (Implode) */
+        @keyframes implode {
+            0% { 
+                opacity: 1;
+                transform: translate(0, 0) scale(1);
+            }
+            100% { 
+                opacity: 0;
+                /* 中心(--tx, --ty)に向かって吸い込まれる */
+                transform: translate(var(--tx), var(--ty)) scale(0.1); 
+            }
         }
 
+        /* ビッグバン：爆発 (Explode) */
         @keyframes explode {
-            to { transform: translate(var(--ex), var(--ey)) rotate(var(--er)) scale(0); opacity: 0; }
+            0% { 
+                opacity: 0; 
+                transform: scale(0.5) rotate(0deg);
+                filter: blur(10px);
+            }
+            50% {
+                opacity: 1;
+                transform: scale(1.1);
+            }
+            100% { 
+                opacity: 1; 
+                transform: scale(1) rotate(0deg);
+                filter: blur(0px);
+            }
+        }
+        
+        /* 時刻が消える時の拡散 */
+        @keyframes vanish {
+            to { transform: translate(var(--ex), var(--ey)) scale(2); opacity: 0; }
         }
     </style>
 </head>
@@ -113,105 +156,158 @@
 
     <div id="canvas-container"></div>
 
-    <div id="timeDisplay"></div>
-
-    <div class="btn-container">
-        <button id="mainButton" class="button">INITIALIZE</button>
+    <div class="center-stage">
+        <button id="mainButton" class="button">TIME</button>
+        <div id="timeDisplay"></div>
     </div>
 
     <script>
         const container = document.getElementById('canvas-container');
         const mainButton = document.getElementById('mainButton');
         const timeDisplay = document.getElementById('timeDisplay');
-        let interval;
+        let letterInterval;
 
+        // ランダムな文字を生成して浮遊させる
         function createLetter() {
             const letter = document.createElement('div');
-            const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ$%&#@';
+            const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZPROCESS_LOADING_SYSTEM_CHECK';
             letter.className = 'floating-letter';
             letter.textContent = chars[Math.floor(Math.random() * chars.length)];
             
+            // 画面内のランダムな位置に出現
             const startX = Math.random() * window.innerWidth;
             const startY = Math.random() * window.innerHeight;
             
             letter.style.left = startX + 'px';
             letter.style.top = startY + 'px';
             
-            // Random movement vector
+            // 浮遊する方向と距離をランダムに
             letter.style.setProperty('--dx', `${(Math.random() - 0.5) * 200}px`);
             letter.style.setProperty('--dy', `${(Math.random() - 0.5) * 200}px`);
             
-            letter.style.animation = `drift ${4 + Math.random() * 4}s linear infinite`;
+            letter.style.animation = `drift ${5 + Math.random() * 5}s linear infinite`;
             
             container.appendChild(letter);
-            setTimeout(() => letter.remove(), 8000);
+            
+            // 画面外に出たり時間が経ったら削除
+            setTimeout(() => {
+                if(letter.parentNode) letter.remove();
+            }, 10000);
         }
 
-        function startDrift() {
-            interval = setInterval(createLetter, 150);
+        function startFloating() {
+            // 定期的に文字を生成
+            letterInterval = setInterval(createLetter, 100);
         }
 
-        async function showTime() {
-            // 1. Gather letters
+        // ==========================================
+        //  ここがビッグバンの心臓部 (Click Action)
+        // ==========================================
+        mainButton.addEventListener('click', () => {
+            clearInterval(letterInterval); // 新しい文字の生成を停止
+            
+            // 1. ボタンを隠す
+            mainButton.style.opacity = '0';
+            mainButton.style.pointerEvents = 'none'; // クリック不可に
+
+            // 2. 画面上の全ての文字を中心（ボタンの位置）に吸い込む
             const letters = document.querySelectorAll('.floating-letter');
-            const btnRect = mainButton.getBoundingClientRect();
-            const centerX = btnRect.left + btnRect.width / 2;
-            const centerY = btnRect.top + btnRect.height / 2;
+            
+            // 画面中心座標を取得
+            const centerX = window.innerWidth / 2;
+            const centerY = window.innerHeight / 2;
 
-            letters.forEach(l => {
-                const rect = l.getBoundingClientRect();
-                l.style.setProperty('--tx', `${centerX - rect.left}px`);
-                l.style.setProperty('--ty', `${centerY - rect.top}px`);
-                l.style.animation = 'gather 0.8s cubic-bezier(0.55, 0.055, 0.675, 0.19) forwards';
+            letters.forEach(letter => {
+                // 文字の現在位置を取得
+                const rect = letter.getBoundingClientRect();
+                const currentLeft = rect.left;
+                const currentTop = rect.top;
+
+                // 中心までの距離（ベクトル）を計算
+                // 「中心 - 現在地」が移動すべき距離
+                const moveX = centerX - currentLeft;
+                const moveY = centerY - currentTop;
+
+                // CSS変数にセット
+                letter.style.setProperty('--tx', `${moveX}px`);
+                letter.style.setProperty('--ty', `${moveY}px`);
+
+                // 既存のアニメーションを上書きして「吸い込み」アニメーションを発動
+                // cubic-bezierで「急激に加速して吸い込まれる」動きを表現
+                letter.style.animation = 'implode 0.6s cubic-bezier(0.6, -0.28, 0.735, 0.045) forwards';
             });
 
-            // 2. Transition Button
-            mainButton.style.opacity = '0';
-            setTimeout(() => mainButton.style.display = 'none', 500);
-
-            // 3. Display Time
+            // 3. 吸い込み終わったタイミング(0.6秒後)で時刻を爆発表示
             setTimeout(() => {
-                const now = new Date();
-                const timeStr = now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                // 文字を全て消す
+                container.innerHTML = '';
                 
+                showExplosiveTime();
+            }, 600);
+        });
+
+        function showExplosiveTime() {
+            const now = new Date();
+            // 見やすいフォーマットで時刻取得
+            const timeStr = now.toLocaleTimeString('en-US', { hour12: false });
+            
+            timeDisplay.innerHTML = '';
+            
+            // 時刻を一文字ずつspanで囲む
+            [...timeStr].forEach((char) => {
+                const span = document.createElement('span');
+                span.className = 'time-char';
+                span.textContent = char;
+                timeDisplay.appendChild(span);
+            });
+
+            timeDisplay.style.opacity = '1';
+            
+            // 時刻自体に爆発アニメーションを適用
+            // .time-char ではなく #timeDisplay 全体、あるいは文字ごとに適用も可能
+            // ここではシンプルに文字を表示
+            const chars = timeDisplay.querySelectorAll('.time-char');
+            chars.forEach((c, i) => {
+                c.style.animation = `explode 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards`;
+                c.style.animationDelay = `${i * 0.05}s`; // 少しずつずらして表示
+            });
+
+            // 4. 数秒後に時刻を拡散させて、初期状態に戻す
+            setTimeout(resetSystem, 4000);
+        }
+
+        function resetSystem() {
+            // 時刻を拡散させて消す
+            const chars = document.querySelectorAll('.time-char');
+            chars.forEach(char => {
+                char.style.setProperty('--ex', `${(Math.random() - 0.5) * 500}px`);
+                char.style.setProperty('--ey', `${(Math.random() - 0.5) * 500}px`);
+                char.style.animation = 'vanish 0.8s ease-in forwards';
+            });
+
+            // アニメーション終了後にリセット
+            setTimeout(() => {
+                timeDisplay.style.opacity = '0';
                 timeDisplay.innerHTML = '';
-                [...timeStr].forEach((char, i) => {
-                    const span = document.createElement('span');
-                    span.className = 'time-char';
-                    span.textContent = char === ' ' ? '\u00A0' : char;
-                    timeDisplay.appendChild(span);
-                });
-
-                timeDisplay.style.opacity = '1';
-
-                // 4. Auto-Explode after 4 seconds
-                setTimeout(explodeTime, 4000);
+                
+                // ボタンを復活
+                mainButton.style.opacity = '1';
+                mainButton.style.pointerEvents = 'auto';
+                
+                // 浮遊文字を再開
+                startFloating();
             }, 800);
         }
 
-        function explodeTime() {
-            const chars = document.querySelectorAll('.time-char');
-            chars.forEach(char => {
-                char.style.setProperty('--ex', `${(Math.random() - 0.5) * 600}px`);
-                char.style.setProperty('--ey', `${(Math.random() - 0.5) * 600}px`);
-                char.style.setProperty('--er', `${(Math.random() - 0.5) * 720}deg`);
-                char.style.animation = 'explode 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards';
-            });
+        // 初期化
+        startFloating();
 
-            setTimeout(() => {
-                timeDisplay.style.opacity = '0';
-                mainButton.style.display = 'block';
-                setTimeout(() => mainButton.style.opacity = '1', 50);
-                startDrift();
-            }, 1200);
-        }
-
-        mainButton.addEventListener('click', () => {
-            clearInterval(interval);
-            showTime();
+        // ウィンドウサイズが変わった時に中心ズレを防ぐためのリサイズイベント（念の為）
+        window.addEventListener('resize', () => {
+            // CSSの transform: translate(-50%, -50%) で制御しているので
+            // JS側での特別な計算は不要です。これがCSSセンタリングの強みです。
         });
 
-        startDrift();
     </script>
 </body>
 </html>
